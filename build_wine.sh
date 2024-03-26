@@ -378,7 +378,7 @@ fi
 if [ "${EXPERIMENTAL_WOW64}" = "true" ]; then
   if [ ! -d "${BOOTSTRAP_X64}" ]; then
     clear
-    echo "Bootstraps are required for compilation!"
+    echo "Bootstraps 64 are required for compilation!"
     exit 1
   fi
 else
