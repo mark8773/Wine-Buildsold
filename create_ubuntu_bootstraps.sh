@@ -25,7 +25,7 @@ fi
 # Keep in mind that although you can choose any version of Ubuntu/Debian
 # here, but this script has only been tested with Ubuntu 18.04 Bionic
 if [ "${EXPERIMENTAL_WOW64}" = "true" ]; then
-export CHROOT_DISTRO="jammy"
+export CHROOT_DISTRO="bionic"
 else
 export CHROOT_DISTRO="bionic"
 fi
