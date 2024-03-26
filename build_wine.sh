@@ -332,16 +332,16 @@ if [ "$TERMUX_GLIBC" = "true" ]; then
     echo "Applying additional patches for Termux Glibc..."
 
     if [ "$WINE_BRANCH" = "staging" ] || [ "$WINE_BRANCH" = "staging-tkg" ]; then
-    patch -d wine -Np1 < "${scriptdir}"/esync.patch && \
+#    patch -d wine -Np1 < "${scriptdir}"/esync.patch && \
     patch -d wine -Np1 < "${scriptdir}"/termux-wine-fix-staging.patch && \
-    patch -d wine -Np1 < "${scriptdir}"/pathfix.patch
+#    patch -d wine -Np1 < "${scriptdir}"/pathfix.patch
     else
-    patch -d wine -Np1 < "${scriptdir}"/esync.patch && \
+#    patch -d wine -Np1 < "${scriptdir}"/esync.patch && \
     patch -d wine -Np1 < "${scriptdir}"/termux-wine-fix.patch && \
-    patch -d wine -Np1 < "${scriptdir}"/pathfix.patch || {
-        echo "Error: Failed to apply one or more patches."
-        exit 1
-    }
+#    patch -d wine -Np1 < "${scriptdir}"/pathfix.patch || {
+#        echo "Error: Failed to apply one or more patches."
+#        exit 1
+#    }
     clear
 fi
 fi
