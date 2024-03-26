@@ -335,7 +335,6 @@ if [ "$TERMUX_GLIBC" = "true" ]; then
     patch -d wine -Np1 < "${scriptdir}"/termux-wine-fix-staging.patch
     else
     patch -d wine -Np1 < "${scriptdir}"/termux-wine-fix.patch
-    clear
 fi
 fi
 #if [ "$WINE_BRANCH" = "vanilla" ] || [ "$WINE_BRANCH" = "staging" ]; then
