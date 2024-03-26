@@ -2,7 +2,7 @@ diff --git a/dlls/ntdll/unix/server.c b/dlls/ntdll/unix/server.c
 index b08a31a9..15c992cf 100644
 --- a/dlls/ntdll/unix/server.c
 +++ b/dlls/ntdll/unix/server.c
-@@ -1354,9 +1354,12 @@ static int setup_config_dir(void)
+@@ -1354,9 +1354,11 @@ static int setup_config_dir(void)
      if (!mkdir( "dosdevices", 0777 ))
      {
          mkdir( "drive_c", 0777 );
