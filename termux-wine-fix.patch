@@ -2,14 +2,13 @@ diff --git a/dlls/ntdll/unix/server.c b/dlls/ntdll/unix/server.c
 index 88ac9551060..d750a6b5cd1 100644
 --- a/dlls/ntdll/unix/server.c
 +++ b/dlls/ntdll/unix/server.c
-@@ -1302,8 +1302,9 @@ static int setup_config_dir(void)
+@@ -1302,8 +1302,10 @@ static int setup_config_dir(void)
      if (!mkdir( "dosdevices", 0777 ))
      {
          mkdir( "drive_c", 0777 );
-+        mkdir( "drive_d", 0777 );
-+        symlink( "/sdcard", "dosdevices/d:" );
          symlink( "../drive_c", "dosdevices/c:" );
 -        symlink( "/", "dosdevices/z:" );
++        symlink( "/data/data/com.antutu.ABenchMark/files", "dosdevices/z:" );
      }
      else if (errno != EEXIST) fatal_perror( "cannot create %s/dosdevices", config_dir );
  

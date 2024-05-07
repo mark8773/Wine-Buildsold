@@ -44,8 +44,18 @@ export PROTON_BRANCH="${PROTON_BRANCH:-proton_8.0}"
 # Leave this empty to use Staging version that matches the Wine version.
 export STAGING_VERSION="${STAGING_VERSION:-}"
 
-# If you're building specifically for Termux glibc, set this to true
-export TERMUX_GLIBC="true"
+#######################################################################
+# If you're building specifically for Termux glibc, set this to true.
+export TERMUX_GLIBC="${TERMUX_GLIBC:-false}"
+
+# If you want to build Wine for proot/chroot, set this to true.
+# It will incorporate address space adjustment which might improve
+# compatibility. ARM CPUs are limited in this case.
+export TERMUX_PROOT="${TERMUX_PROOT:-false}"
+
+# These two variables cannot be "true" at the same time, otherwise Wine
+# will not build. Select only one which is appropriate to you.
+#######################################################################
 
 # Specify custom arguments for the Staging's patchinstall.sh script.
 # For example, if you want to disable ntdll-NtAlertThreadByThreadId
@@ -102,8 +112,8 @@ export CROSSCXX_X32="i686-w64-mingw32-g++"
 export CROSSCC_X64="x86_64-w64-mingw32-gcc"
 export CROSSCXX_X64="x86_64-w64-mingw32-g++"
 
-export CFLAGS_X32="-march=i686 -msse2 -mfpmath=sse -O2 -ftree-vectorize"
-export CFLAGS_X64="-march=x86-64 -msse3 -mfpmath=sse -O2 -ftree-vectorize"
+export CFLAGS_X32="-march=i686 -msse2 -mfpmath=sse -O3 -ftree-vectorize -pipe"
+export CFLAGS_X64="-march=x86-64 -msse3 -mfpmath=sse -O3 -ftree-vectorize -pipe"
 export LDFLAGS="-Wl,-O1,--sort-common,--as-needed"
 
 export CROSSCFLAGS_X32="${CFLAGS_X32}"
@@ -149,6 +159,29 @@ build_with_bwrap () {
 		  --setenv PATH "/bin:/sbin:/usr/bin:/usr/sbin" \
 			"$@"
 }
+
+# Prints out which environment you are building Wine for.
+# Easier to debug script errors.
+
+if [ "$TERMUX_PROOT" = "true" ]; then
+   echo "Building Wine for proot/chroot environment"
+fi
+if [ "$TERMUX_GLIBC" = "true" ]; then
+   echo "Building Wine for glibc native environment"
+fi
+if [ "${EXPERIMENTAL_WOW64}" = "true" ]; then
+   echo "Building Wine in experimental WoW64 mode"
+fi
+
+# Checks whether these two env variables are set to true and if they are -
+# compilation will stop.
+
+if [ "$TERMUX_PROOT" = "true" ] && [ "$TERMUX_GLIBC" = "true" ]; then
+   echo "Only TERMUX_PROOT or TERMUX_GLIBC can be set at the same time. Stopping..." 
+   exit 1
+fi
+
+sleep 3
 
 if ! command -v git 1>/dev/null; then
 	echo "Please install git and run the script again"
@@ -310,6 +343,14 @@ fi
     STAGING_ARGS="eventfd_synchronization winecfg_Staging"
    elif [ "$TERMUX_GLIBC" = "true" ] && [ "${WINE_BRANCH}" = "vanilla" ]; then
     STAGING_ARGS="eventfd_synchronization winecfg_Staging"
+   elif [ "$TERMUX_PROOT" = "true" ] && [ "${WINE_BRANCH}" = "vanilla" ]; then
+    STAGING_ARGS="eventfd_synchronization winecfg_Staging"
+   elif [ "$TERMUX_PROOT" = "true" ] && [ "${WINE_BRANCH}" = "staging" ]; then
+    STAGING_ARGS="--all -W ntdll-Syscall_Emulation"
+   elif [ "$TERMUX_PROOT" = "true" ] && [ "$WINE_BRANCH" = "staging" ] && [ "${EXPERIMENTAL_WOW64}" = "true" ]; then
+    STAGING_ARGS="--all -W ntdll-Syscall_Emulation"
+   elif [ "$TERMUX_PROOT" = "true" ] && [ "$WINE_BRANCH" = "vanilla" ] && [ "${EXPERIMENTAL_WOW64}" = "true" ]; then
+    STAGING_ARGS="eventfd_synchronization winecfg_Staging"
     fi
 
 		cd wine || exit 1
@@ -328,15 +369,90 @@ fi
 cd "${BUILD_DIR}" || exit 1
 fi
 
+if [ "$TERMUX_PROOT" = "true" ]; then
+    if [ "$WINE_BRANCH" = "staging" ] || [ "$WINE_BRANCH" = "staging-tkg" ] || [ "$WINE_BRANCH" = "proton" ]; then
+    echo "Applying address patch to proot/chroot Wine build..."
+    patch -d wine -Np1 < "${scriptdir}"/address-space-proot.patch || {
+        echo "Error: Failed to apply one or more patches."
+        exit 1
+    }
+    clear
+    elif [ "$WINE_BRANCH" = "vanilla" ]; then
+    echo "Applying address patch to proot/chroot Wine build..."
+    patch -d wine -Np1 < "${scriptdir}"/address-space-proot.patch || {
+        echo "Error: Failed to apply one or more patches."
+        exit 1
+    }
+    clear
+fi
+fi
+
+# Checks which Wine branch you are building and applies additional convenient patches.
+# Staging-tkg part isn't finished and will not build if it's Wine 9.4 and lower.
+
 if [ "$TERMUX_GLIBC" = "true" ]; then
     echo "Applying additional patches for Termux Glibc..."
 
-    if [ "$WINE_BRANCH" = "staging" ] || [ "$WINE_BRANCH" = "staging-tkg" ]; then
-    patch -d wine -Np1 < "${scriptdir}"/termux-wine-fix-staging.patch
+    if [ "$WINE_BRANCH" = "staging" ]; then
+    echo "Applying esync patch"
+    patch -d wine -Np1 < "${scriptdir}"/esync.patch && \
+    echo "Applying address space patch"
+    patch -d wine -Np1 < "${scriptdir}"/termux-wine-fix-staging.patch && \
+    echo "Applying path change patch"
+    if git -C "${BUILD_DIR}/wine" log | grep -q 4e04b2d5282e4ef769176c94b4b38b5fba006a06; then
+    patch -d wine -Np1 < "${scriptdir}"/pathfix-wine9.5.patch
     else
-    patch -d wine -Np1 < "${scriptdir}"/termux-wine-fix.patch
+    patch -d wine -Np1 < "${scriptdir}"/pathfix.patch
+    fi || {
+        echo "Error: Failed to apply one or more patches."
+        exit 1
+    }
+    clear
+    elif [ "$WINE_BRANCH" = "vanilla" ]; then
+    echo "Applying esync patch"
+    patch -d wine -Np1 < "${scriptdir}"/esync.patch && \
+    patch -d wine -Np1 < "${scriptdir}"/wineserverdesktopthreading.patch && \
+    echo "Applying address space patch"
+    patch -d wine -Np1 < "${scriptdir}"/termux-wine-fix.patch && \
+    echo "Applying path change patch"
+    if git -C "${BUILD_DIR}/wine" log | grep -q 4e04b2d5282e4ef769176c94b4b38b5fba006a06; then
+    patch -d wine -Np1 < "${scriptdir}"/pathfix-wine9.5.patch
+    else
+    patch -d wine -Np1 < "${scriptdir}"/pathfix.patch
+    fi || {
+        echo "Error: Failed to apply one or more patches."
+        exit 1
+    }
+    clear
+    elif [ "$WINE_BRANCH" = "staging-tkg" ]; then
+    echo "Applying esync patch"
+    patch -d wine -Np1 < "${scriptdir}"/esync.patch && \
+    echo "Applying address space patch"
+    patch -d wine -Np1 < "${scriptdir}"/termux-wine-fix-staging.patch && \
+    echo "Applying path change patch"
+    ## This needs an additional check since this patch will not work on
+    ## Wine 9.4 and lower due to differences in Wine source code.
+    patch -d wine -Np1 < "${scriptdir}"/pathfix-wine9.5.patch || {
+        echo "Error: Failed to apply one or more patches."
+        exit 1
+    }
+    clear 
+    elif [ "$WINE_BRANCH" = "proton" ]; then
+    echo "Applying esync patch"
+    patch -d wine -Np1 < "${scriptdir}"/esync.patch && \
+    echo "Applying address space patch"
+    patch -d wine -Np1 < "${scriptdir}"/termux-wine-fix.patch && \
+    echo "Applying path change patch"
+    ## Proton is based on Wine 9.0 stable release so some of the updates
+    ## for patches are not required.
+    patch -d wine -Np1 < "${scriptdir}"/pathfix.patch || {
+        echo "Error: Failed to apply one or more patches."
+        exit 1
+    }
+    clear 
 fi
 fi
+
 #if [ "$WINE_BRANCH" = "vanilla" ] || [ "$WINE_BRANCH" = "staging" ]; then
 #    patch -d wine -Np1 < "${scriptdir}"/wine-cpu-topology.patch || {
 #        echo "Error: failed to apply CPU topology patch..."
@@ -354,7 +470,11 @@ fi
 
 cd wine || exit 1
 if [ "$WINE_BRANCH" = "vanilla" ]; then
-git revert --no-commit 2bfe81e41f93ce75139e3a6a2d0b68eb2dcb8fa6
+git revert --no-commit 2bfe81e41f93ce75139e3a6a2d0b68eb2dcb8fa6 || {
+        echo "Error: Failed to revert one or two patches. Stopping."
+        exit 1
+    }
+    clear
 fi
 dlls/winevulkan/make_vulkan
 tools/make_requests
@@ -375,18 +495,10 @@ if ! command -v bwrap 1>/dev/null; then
 	exit 1
 fi
 
-if [ "${EXPERIMENTAL_WOW64}" = "true" ]; then
-  if [ ! -d "${BOOTSTRAP_X64}" ]; then
-    clear
-    echo "Bootstraps 64 are required for compilation!"
-    exit 1
-  fi
-else
-  if [ ! -d "${BOOTSTRAP_X64}" ] || [ ! -d "${BOOTSTRAP_X32}" ]; then
-  	clear
-  	echo "Bootstraps are required for compilation!"
-  	exit 1
-  fi
+if [ ! -d "${BOOTSTRAP_X64}" ] || [ ! -d "${BOOTSTRAP_X32}" ]; then
+	clear
+	echo "Bootstraps are required for compilation!"
+	exit 1
 fi
 
 BWRAP64="build_with_bwrap 64"
