@@ -403,10 +403,10 @@ if [ "$TERMUX_GLIBC" = "true" ]; then
 #    else
 #    patch -d wine -Np1 < "${scriptdir}"/pathfix.patch
 #    fi || {
-    {
-        echo "Error: Failed to apply one or more patches."
-        exit 1
-    }
+#    {
+#        echo "Error: Failed to apply one or more patches."
+#        exit 1
+#    }
     clear
     elif [ "$WINE_BRANCH" = "vanilla" ]; then
     echo "Applying esync patch"
